@@ -14,4 +14,4 @@ RUN chown -R appuser:appuser /src
 
 USER appuser
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8888"]
+CMD ["bash", "-c", "cd src && uvicorn main:app --host 0.0.0.0 --port 8888"]
