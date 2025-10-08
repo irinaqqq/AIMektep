@@ -11,3 +11,4 @@ passlib==1.7.4
 pyjwt
 email-validator
 openai
+python-multipart
