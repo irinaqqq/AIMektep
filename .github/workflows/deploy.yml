@@ -1,0 +1,41 @@
+name: CI/CD Deploy (SSH - No DockerHub)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_KEY }}
+          script: |
+            set -e
+            echo "🚀 Connecting to server and deploying AIMektep..."
+
+            # Создаём папку проекта, если её нет
+            if [ ! -d "/home/${{ secrets.SERVER_USER }}/AIMektep" ]; then
+              echo "📁 Cloning repo for the first time..."
+              git clone https://github.com/${{ github.repository }} /home/${{ secrets.SERVER_USER }}/AIMektep
+            fi
+
+            cd /home/${{ secrets.SERVER_USER }}/AIMektep
+
+            echo "🧭 Pulling latest changes..."
+            git pull origin main
+
+            echo "🔧 Building and restarting container..."
+            docker-compose down
+            docker-compose up -d --build
+
+            echo "✅ Deployment completed successfully!"
