@@ -26,7 +26,7 @@ jobs:
             # Создаём папку проекта, если её нет
             if [ ! -d "/home/${{ secrets.SERVER_USER }}/AIMektep" ]; then
               echo "📁 Cloning repo for the first time..."
-              git clone https://github.com/${{ github.repository }} /home/${{ secrets.SERVER_USER }}/AIMektep
+              git clone https://${{ secrets.TOKEN_DEPLOY }}@github.com/irinaqqq/AIMektep.git /home/${{ secrets.SERVER_USER }}/AIMektep
             fi
 
             cd /home/${{ secrets.SERVER_USER }}/AIMektep
