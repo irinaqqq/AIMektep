@@ -35,7 +35,7 @@ jobs:
             git pull origin main
 
             echo "🔧 Building and restarting container..."
-            docker-compose down
-            docker-compose up -d --build
+            docker compose down
+            docker compose up -d --build
 
             echo "✅ Deployment completed successfully!"
