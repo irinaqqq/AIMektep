@@ -4,7 +4,7 @@ from modules.open_ai.service import OpenAIService
 from modules.open_ai.dependencies import get_ai_service
 from modules.open_ai.schemas import SummarizeRequest, SummarizeResponse
 
-router = APIRouter(prefix="/ai", tags=["AI"])
+router = APIRouter(prefix="/ai", tags=["AI TEST"])
 
 
 @router.post("/summarize", response_model=SummarizeResponse)
