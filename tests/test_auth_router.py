@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from httpx import AsyncClient
 
 # Import the router and dependency callables used in the router
-from src.routers.auth_router import router as auth_router  # adjust import if your package layout differs
+from src.routers.auth_router import router as auth_router 
 from core.database import get_db
 from modules.auth.dependencies import get_auth_service, get_bearer_token, get_current_user
 

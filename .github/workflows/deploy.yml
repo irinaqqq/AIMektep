@@ -11,11 +11,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with: { python-version: "3.11" }
+
       - name: Install linters
         run: pip install black flake8 mypy || true
+
       - name: Run linters
         run: |
           black --check . || true
@@ -42,7 +45,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      # <-- гарантируем, что корень репозитория в PYTHONPATH -->
       - name: Ensure repo root is in PYTHONPATH
         run: echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
 
