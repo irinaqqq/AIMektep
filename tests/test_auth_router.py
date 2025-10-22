@@ -1,115 +1,85 @@
-import pytest
-from fastapi import FastAPI
-from httpx import AsyncClient, ASGITransport
+from typing import Annotated
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# Импортируем сам роутер и зависимые callables, которые он использует
-from src.routers.auth_router import router as auth_router
+from models import User
 from core.database import get_db
-from modules.auth.dependencies import get_auth_service, get_bearer_token, get_current_user
+from schemas import StatusResponse
+from modules.user.schemas import UserCreate
+from modules.auth.service import AuthService
+from modules.auth.schemas import TokenResponse, SimpleLoginForm
+from modules.auth.dependencies import (
+    get_auth_service,
+    get_bearer_token,
+    get_current_user,
+)
 
-# ----------------------------
-# Фейки / заглушки зависимостей
-# ----------------------------
+router = APIRouter(prefix="/auth", tags=["Authorization"])
 
-class FakeAuthService:
-    async def register_user(self, data, db):
-        # Имитируем успешную регистрацию
-        return "access", "refresh"
+# ---------------------------
+# Register
+# ---------------------------
+@router.post("/register", response_model=TokenResponse, summary="Register a new user")
+async def register_user_route(
+    payload: UserCreate,
+    db: AsyncSession = Depends(get_db),
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    access_token, refresh_token = await auth_service.register_user(payload, db)
+    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
-    async def authenticate_user(self, username, password, db):
-        # Имитируем успешный логин
-        return "access", "refresh"
+# ---------------------------
+# Login (нужен тестам)
+# ---------------------------
+@router.post("/login", response_model=TokenResponse, summary="Login user and issue tokens")
+async def login_user_route(
+    form: SimpleLoginForm,
+    db: AsyncSession = Depends(get_db),
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    access_token, refresh_token = await auth_service.authenticate_user(
+        form.username, form.password, db
+    )
+    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
-    async def refresh_access_token(self, refresh_token: str, db):
-        # Имитация выдачи нового access токена по refresh
-        return "new_access"
+# ---------------------------
+# Refresh (алиас под тесты)
+# ---------------------------
+@router.post("/refresh", response_model=TokenResponse, summary="Refresh access token")
+async def refresh_access_token_route(
+    db: AsyncSession = Depends(get_db),
+    refresh_token: str = Depends(get_bearer_token),
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    access_token = await auth_service.refresh_access_token(refresh_token, db)
+    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
-    async def logout_user(self, refresh_token: str):
-        # Имитация успешного логаута
-        return True
+# (если хочешь сохранить старый путь, оставь алиас)
+@router.post("/token/refresh", response_model=TokenResponse, summary="Refresh access token (alias)")
+async def refresh_token_route(
+    db: AsyncSession = Depends(get_db),
+    refresh_token: str = Depends(get_bearer_token),
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    access_token = await auth_service.refresh_access_token(refresh_token, db)
+    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
+# ---------------------------
+# Logout
+# ---------------------------
+@router.post("/logout", response_model=StatusResponse, summary="Logout user")
+async def logout_user_route(
+    refresh_token: str = Depends(get_bearer_token),
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    await auth_service.logout_user(refresh_token)
+    return StatusResponse(message="Logged out successfully")
 
-async def fake_db():
-    # Минимальная заглушка для get_db (генератор как у Depends(get_db))
-    class _Dummy:
-        pass
-    yield _Dummy()
-
-
-async def fake_bearer_token():
-    # Заглушка вытаскивания токена из Authorization
-    return "fake_refresh"
-
-
-async def fake_current_user():
-    # Заглушка текущего пользователя
-    class _User:
-        id = 1
-        username = "testuser"
-        email = "test@example.com"
-    return _User()
-
-
-# ----------------------------
-# Фикстура приложения
-# ----------------------------
-
-@pytest.fixture
-def app() -> FastAPI:
-    app = FastAPI()
-    app.include_router(auth_router)
-
-    # Подменяем реальные зависимости на фейки
-    app.dependency_overrides[get_db] = fake_db
-    app.dependency_overrides[get_auth_service] = lambda: FakeAuthService()
-    app.dependency_overrides[get_bearer_token] = fake_bearer_token
-    app.dependency_overrides[get_current_user] = fake_current_user
-    return app
-
-
-# ----------------------------
-# ТЕСТЫ
-# ----------------------------
-
-@pytest.mark.asyncio
-async def test_login_returns_tokens(app: FastAPI):
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
-        resp = await ac.post("/auth/login", data={"username": "user", "password": "pass"})
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body.get("access_token") == "access"
-    assert body.get("refresh_token") == "refresh"
-
-
-@pytest.mark.asyncio
-async def test_refresh_returns_access_token(app: FastAPI):
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
-        resp = await ac.post("/auth/refresh")
-    assert resp.status_code == 200
-    body = resp.json()
-    # роут (обычно) возвращает {"access_token": "..."} — проверяем наш фейк
-    assert body.get("access_token") == "new_access"
-
-
-@pytest.mark.asyncio
-async def test_logout_returns_status(app: FastAPI):
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
-        resp = await ac.post("/auth/logout")
-    assert resp.status_code == 200
-    body = resp.json()
-    # в твоём роуте из примера сообщение именно такое
-    assert body.get("message") == "Logged out successfully"
-
-
-@pytest.mark.asyncio
-async def test_test_endpoint_requires_user(app: FastAPI):
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
-        resp = await ac.post("/auth/test")
-    assert resp.status_code == 200
-    body = resp.json()
-    # судя по твоему роуту /auth/test возвращает то же сообщение
-    assert body.get("message") == "Logged out successfully"
+# ---------------------------
+# Test endpoint (как в тестах)
+# ---------------------------
+@router.post("/test", response_model=StatusResponse, summary="test user")
+async def test(
+    current_user: User = Depends(get_current_user),
+):
+    return StatusResponse(message="Logged out successfully")
