@@ -31,6 +31,9 @@ jobs:
     needs: lint
     env:
       DATABASE_URL: sqlite+aiosqlite:///./test.db
+      # кладём и корень, и src в sys.path — покрываем оба варианта импорта
+      PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+
     steps:
       - uses: actions/checkout@v4
 
@@ -47,16 +50,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Ensure repo root is in PYTHONPATH
-        run: echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
-
-      - name: Install dependencies & test deps
+      - name: Install deps
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          # Если проект оформлен как пакет, установим в editable режиме (необязательно)
+          # не обязательно, но если есть packaging — норм
           if [ -f setup.py ] || [ -f pyproject.toml ]; then pip install -e .; fi
-          pip install aiosqlite pytest pytest-asyncio httpx
+          pip install "httpx>=0.28" pytest pytest-asyncio aiosqlite
 
       - name: Run tests
         run: pytest -q
