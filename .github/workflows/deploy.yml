@@ -59,7 +59,9 @@ jobs:
           pip install "httpx>=0.28" pytest pytest-asyncio aiosqlite
 
       - name: Run tests
-        run: pytest -q
+        env:
+          PYTEST_ADDOPTS: "-p pytest_asyncio --asyncio-mode=auto -q"
+        run: pytest
 
   deploy:
     runs-on: ubuntu-latest
