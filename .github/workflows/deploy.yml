@@ -28,9 +28,12 @@ jobs:
     needs: lint
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v4
-        with: { python-version: "3.11" }
+        with:
+          python-version: "3.11"
+
       - name: Cache pip
         uses: actions/cache@v4
         with:
@@ -38,11 +41,19 @@ jobs:
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
+
+      # <-- гарантируем, что корень репозитория в PYTHONPATH -->
+      - name: Ensure repo root is in PYTHONPATH
+        run: echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
+
       - name: Install dependencies & test deps
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # Если проект оформлен как пакет, установим в editable режиме (необязательно)
+          if [ -f setup.py ] || [ -f pyproject.toml ]; then pip install -e .; fi
           pip install pytest pytest-asyncio httpx
+
       - name: Run tests
         run: pytest -q
 
